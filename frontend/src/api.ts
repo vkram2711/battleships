@@ -1,50 +1,68 @@
-export interface AttackResponse {
-    player_result: 'hit' | 'miss' | 'already';
-    ai_attacks: [number, number, 'hit' | 'miss'][];
+import axios from 'axios';
+
+const API_BASE = 'http://localhost:5000'; // change if your backend runs elsewhere
+
+interface PlaceShipResponse {
+    success: boolean;
+    player_board: string[][];
+}
+
+interface ConfirmPlacementResponse {
     player_board: string[][];
     ai_board: string[][];
 }
 
-
-
-// Attack AI board
-export async function attackCell(row: number, col: number): Promise<AttackResponse> {
-    const response = await fetch('http://localhost:5000/attack', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({row, col})
-    });
-    return response.json();
+interface ResetPlacementResponse {
+    player_board: string[][];
 }
 
-// Get current boards
-export async function getBoard(): Promise<{player_board:string[][], ai_board:string[][]}> {
-    const response = await fetch('http://localhost:5000/board');
-    return response.json();
+interface AttackResponse {
+    player_result: 'hit' | 'miss';
+    ai_attacks: [number, number, 'hit' | 'miss'][];
+    player_board: string[][];
+    ai_board: string[][];
+    game_over?: boolean;
+    winner?: 'player' | 'ai';
 }
 
-// Place a ship on player board
-export async function placeShip(row:number, col:number, length:number, orientation:'H'|'V') {
-    const response = await fetch('http://localhost:5000/place_ship', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({row, col, length, orientation})
-    });
-    return response.json(); // returns {success:boolean, player_board:[][]}
+interface RestartGameResponse {
+    player_board: string[][];
+    ai_board: string[][];
 }
 
-export async function resetPlacement() {
-    const response = await fetch('http://localhost:5000/reset_placement', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'}
-    });
-    return response.json(); // returns { player_board }
-}
+export const placeShip = async (
+    row: number,
+    col: number,
+    length: number,
+    orientation: 'H' | 'V'
+): Promise<PlaceShipResponse> => {
+    const { data } = await axios.post(`${API_BASE}/place_ship`, { row, col, length, orientation });
+    return data;
+};
 
-export async function confirmPlacement() {
-    const response = await fetch('http://localhost:5000/confirm_placement', {
-        method:'POST',
-        headers:{'Content-Type':'application/json'}
-    });
-    return response.json(); // returns { player_board, ai_board }
-}
+export const confirmPlacement = async (): Promise<ConfirmPlacementResponse> => {
+    const { data } = await axios.post(`${API_BASE}/confirm_placement`);
+    return data;
+};
+
+export const resetPlacement = async (): Promise<ResetPlacementResponse> => {
+    const { data } = await axios.post(`${API_BASE}/reset_placement`);
+    return data;
+};
+
+export const attackCell = async (row: number, col: number): Promise<AttackResponse> => {
+    const { data } = await axios.post(`${API_BASE}/attack`, { row, col });
+    return data;
+};
+
+// ---------------- New Restart Game ----------------
+export const restartGame = async (): Promise<RestartGameResponse> => {
+    const { data } = await axios.post(`${API_BASE}/restart_game`);
+    return data;
+};
+
+// Optional: get boards (if needed)
+export const getBoard = async (): Promise<ConfirmPlacementResponse> => {
+    const { data } = await axios.get(`${API_BASE}/board`);
+    return data;
+};

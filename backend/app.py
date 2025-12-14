@@ -26,8 +26,10 @@ def place_ship():
 
 @app.route('/confirm_placement', methods=['POST'])
 def confirm_placement():
-    # Optionally, you could set a flag like game.placement_confirmed = True
-    # For now, just return the current boards
+    # Reset game-over flags if any (starting a play session)
+    game.game_over = False
+    game.winner = None
+    # Return the boards (AI board hidden)
     return jsonify({
         'player_board': game.player_board,
         'ai_board': [['~' if cell == 'S' else cell for cell in row_] for row_ in game.ai_board]
@@ -54,20 +56,58 @@ def hide_ai_ships(board):
 # -------- Attack --------
 @app.route('/attack', methods=['POST'])
 def attack():
+    if game.game_over:
+        # If game already ended, return current state with game_over flag
+        return jsonify({
+            "player_result": None,
+            "ai_attacks": [],
+            "player_board": game.player_board,
+            "ai_board": hide_ai_ships(game.ai_board),
+            "game_over": True,
+            "winner": game.winner
+        })
+
     data = request.json
     row, col = data['row'], data['col']
 
     player_result = game.player_attack(row, col)
 
+    # If player_result is None (invalid turn or game over) return appropriate response
+    if player_result is None:
+        return jsonify({
+            "player_result": None,
+            "ai_attacks": [],
+            "player_board": game.player_board,
+            "ai_board": hide_ai_ships(game.ai_board),
+            "game_over": game.game_over,
+            "winner": game.winner
+        })
+
     ai_attacks = []
-    if game.current_turn == "ai":
+    if game.current_turn == "ai" and not game.game_over:
         ai_attacks = game.ai_take_turn()
 
     return jsonify({
         "player_result": player_result,
         "ai_attacks": ai_attacks,
         "player_board": game.player_board,
-        "ai_board": hide_ai_ships(game.ai_board)
+        "ai_board": hide_ai_ships(game.ai_board),
+        "game_over": game.game_over,
+        "winner": game.winner
+    })
+
+
+# -------- Restart whole game --------
+@app.route('/restart_game', methods=['POST'])
+def restart_game():
+    # Reset everything and re-place AI ships
+    game.reset_full_game()
+    game.place_ai_ships()
+    return jsonify({
+        'player_board': game.player_board,
+        'ai_board': [['~' if cell == 'S' else cell for cell in row_] for row_ in game.ai_board],
+        'game_over': game.game_over,
+        'winner': game.winner
     })
 
 
@@ -76,7 +116,9 @@ def attack():
 def board():
     return jsonify({
         'player_board': game.player_board,
-        'ai_board': [['~' if cell == 'S' else cell for cell in row_] for row_ in game.ai_board]
+        'ai_board': [['~' if cell == 'S' else cell for cell in row_] for row_ in game.ai_board],
+        'game_over': game.game_over,
+        'winner': game.winner
     })
 
 
