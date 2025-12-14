@@ -1,159 +1,212 @@
-import React, { useState, FormEvent } from "react";
-import TimeRangeSlider from "./components/TimeRangeSlider";
-import PrettySelect from "./components/PrettySelect";
+import React, { useState, useEffect } from 'react';
+import Board from './components/Board';
+import { attackCell, placeShip, resetPlacement as apiResetPlacement, confirmPlacement as apiConfirmPlacement } from './api';
 
-/* ======================
-   Types
-====================== */
-
-type Budget = "low" | "medium" | "high";
-type WalkTime = "short" | "medium" | "long";
-type NoiseLevel = "quiet" | "moderate" | "lively";
-type YesNo = "yes" | "no";
-type DontCareYesNo = "yes" | "no" | "dont_care";
-
-interface Preferences {
-  computer_friendly: YesNo;
-  budget: Budget;
-  max_walk_time: WalkTime;
-  start_hour: number;
-  end_hour: number;
-  meal_type: string;
-  noise_level: NoiseLevel;
-  outdoor_seating: DontCareYesNo;
+interface ShipQueueItem {
+    length: number;
+    orientation: 'H' | 'V';
 }
 
-interface RecommendationResponse {
-  recommendations: string[];
-}
-
-interface SelectField {
-  label: string;
-  name: keyof Preferences;
-  options: string[];
-}
-
-/* ======================
-   Fields Metadata
-====================== */
-
-const selectFields: SelectField[] = [
-  { label: "Computer Friendly", name: "computer_friendly", options: ["yes", "no"] },
-  { label: "Budget", name: "budget", options: ["low", "medium", "high"] },
-  { label: "Max Walk Time", name: "max_walk_time", options: ["short", "medium", "long"] },
-  { label: "Meal Type", name: "meal_type", options: ["coffee", "bakery", "breakfast", "brunch", "lunch"] },
-  { label: "Noise Level", name: "noise_level", options: ["quiet", "moderate", "lively"] },
-  { label: "Outdoor Seating", name: "outdoor_seating", options: ["dont_care", "yes", "no"] }
-];
-
-/* ======================
-   App Component
-====================== */
+// Generate ship placement queue
+const generateShipQueue = (): ShipQueueItem[] => {
+    const shipDefs = [
+        { length: 4, count: 1 },
+        { length: 3, count: 2 },
+        { length: 2, count: 3 },
+        { length: 1, count: 4 },
+    ];
+    const queue: ShipQueueItem[] = [];
+    shipDefs.forEach((def) => {
+        for (let i = 0; i < def.count; i++) {
+            queue.push({ length: def.length, orientation: 'H' });
+        }
+    });
+    return queue;
+};
 
 const App: React.FC = () => {
-  const [form, setForm] = useState<Preferences>({
-    computer_friendly: "yes",
-    budget: "medium",
-    max_walk_time: "short",
-    start_hour: 9,
-    end_hour: 18,
-    meal_type: "coffee",
-    noise_level: "quiet",
-    outdoor_seating: "dont_care"
-  });
+    const [playerBoard, setPlayerBoard] = useState<string[][]>(
+        Array(10)
+            .fill(null)
+            .map(() => Array(10).fill('~'))
+    );
+    const [aiBoard, setAiBoard] = useState<string[][]>(
+        Array(10)
+            .fill(null)
+            .map(() => Array(10).fill('~'))
+    );
+    const [loading, setLoading] = useState(false);
 
-  const [recommendations, setRecommendations] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
+    // Ship placement
+    const [shipQueue, setShipQueue] = useState<ShipQueueItem[]>(generateShipQueue());
+    const [currentShipIndex, setCurrentShipIndex] = useState(0);
+    const placingShip = shipQueue[currentShipIndex] || null;
+    const [orientation, setOrientation] = useState<'H' | 'V'>('H');
+    const [aiQueue, setAiQueue] = useState<[number, number, 'hit' | 'miss'][]>([]);
+    const [aiPlaying, setAiPlaying] = useState(false);
+    const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 
-  const submitForm = async (e: FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+    // Game started flag
+    const [gameStarted, setGameStarted] = useState(false);
 
-    try {
-      const res = await fetch("/recommend", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form)
-      });
-      const data: RecommendationResponse = await res.json();
-      setRecommendations([...new Set(data.recommendations)]); // deduplicate
-    } finally {
-      setLoading(false);
-    }
-  };
+    // -------- Player places ship --------
+    const handlePlayerPlace = async (row: number, col: number) => {
+        if (!placingShip || gameStarted) return;
+        setLoading(true);
+        const data = await placeShip(row, col, placingShip.length, orientation);
+        if (data.success) {
+            setPlayerBoard(data.player_board);
+            setCurrentShipIndex((prev) => prev + 1);
+        } else {
+            alert('Invalid placement! Ships cannot overlap or touch.');
+        }
+        setLoading(false);
+    };
 
-  return (
-      <div className="min-h-screen flex items-center justify-center bg-crema p-6">
-        <div className="max-w-4xl w-full grid md:grid-cols-2 gap-8">
+    // -------- Reset placement --------
+    const resetPlacementHandler = async () => {
+        setLoading(true);
+        const data = await apiResetPlacement();
+        setPlayerBoard(data.player_board);
+        setShipQueue(generateShipQueue());
+        setCurrentShipIndex(0);
+        setOrientation('H');
+        setGameStarted(false);
+        setLoading(false);
+    };
 
-          {/* LEFT: Form */}
-          <div className="bg-white rounded-3xl shadow-xl p-8">
-            <h1 className="text-3xl font-bold mb-2">☕ Café Finder</h1>
-            <p className="text-gray-500 mb-6">
-              Find your perfect Buenos Aires café
-            </p>
 
-            <form onSubmit={submitForm} className="space-y-4">
-              {selectFields.map((field) => (
-                  <PrettySelect
-                      key={field.name}
-                      label={field.label}
-                      value={String(form[field.name])}
-                      options={field.options}
-                      onChange={(val) =>
-                          setForm((prev) => ({
-                            ...prev,
-                            [field.name]: val
-                          }))
-                      }
-                  />
-              ))}
+    // -------- Confirm placement --------
+    const confirmPlacementHandler = async () => {
+        if (placingShip) return alert('Place all ships before confirming!');
+        setLoading(true);
+        const data = await apiConfirmPlacement();
+        setPlayerBoard(data.player_board);
+        setAiBoard(data.ai_board);
+        setGameStarted(true); // show both boards
+        setLoading(false);
+    };
 
-              <TimeRangeSlider
-                  start={form.start_hour}
-                  end={form.end_hour}
-                  onChange={(start, end) =>
-                      setForm((prev) => ({ ...prev, start_hour: start, end_hour: end }))
-                  }
-              />
 
-              <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full mt-4 bg-accent hover:bg-mocha text-white font-semibold py-3 rounded-2xl transition"
-              >
-                {loading ? "Brewing..." : "Find Cafés"}
-              </button>
-            </form>
-          </div>
+    const playAiTurn = async (
+        attacks: [number, number, 'hit' | 'miss'][],
+        finalPlayerBoard: string[][]
+    ) => {
+        setAiPlaying(true);
 
-          {/* RIGHT: Recommendations */}
-          <div className="bg-white rounded-3xl shadow-xl p-8">
-            <h2 className="text-2xl font-bold mb-4">Recommendations</h2>
-            {recommendations.length === 0 ? (
-                <p className="text-gray-500">
-                  No cafés yet. Adjust preferences and search again.
-                </p>
-            ) : (
-                <ul className="space-y-4">
-                  {recommendations.map((cafe) => (
-                      <li
-                          key={cafe}
-                          className="p-5 rounded-2xl bg-gradient-to-r from-latte to-crema shadow-md flex items-center justify-between"
-                      >
-                  <span className="text-lg font-semibold capitalize">
-                    {cafe.replace("_", " ")}
-                  </span>
-                        <span className="text-sm text-gray-500">Recommended</span>
-                      </li>
-                  ))}
-                </ul>
+        let tempBoard = [...playerBoard.map(row => [...row])];
+
+        for (let i = 0; i < attacks.length; i++) {
+            const [row, col] = attacks[i];
+
+            // Apply backend-updated board cell
+            tempBoard[row][col] = finalPlayerBoard[row][col];
+            setPlayerBoard([...tempBoard]);
+
+            await sleep(600); // animation delay
+        }
+
+        setAiPlaying(false);
+    };
+
+    const handleAttack = async (row: number, col: number) => {
+        if (!gameStarted || aiPlaying || loading) return;
+
+        setLoading(true);
+        const data = await attackCell(row, col);
+
+        // Update AI board immediately (player's attack)
+        setAiBoard(data.ai_board);
+
+        // Player keeps turn on hit
+        if (data.ai_attacks.length === 0) {
+            setPlayerBoard(data.player_board);
+            setLoading(false);
+            return;
+        }
+
+        // AI turn – play step by step
+        await playAiTurn(data.ai_attacks, data.player_board);
+
+        setLoading(false);
+    };
+
+
+
+    return (
+        <div className="min-h-screen flex flex-col items-center justify-start bg-gradient-to-b from-blue-100 to-blue-300 p-6">
+            <h1 className="text-4xl font-bold text-gray-800 mb-4">Battleships</h1>
+
+            {/* Placement phase */}
+            {!gameStarted && (
+                <div className="mb-4 text-center">
+                    {placingShip ? (
+                        <p className="text-gray-700">
+                            Place your ships! Current length: {placingShip.length}, orientation:{' '}
+                            {orientation}
+                        </p>
+                    ) : (
+                        <p className="text-gray-700 mb-2">All ships placed! Confirm to start the game.</p>
+                    )}
+                    <div className="flex justify-center gap-2">
+                        {placingShip && (
+                            <button
+                                className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition"
+                                onClick={() =>
+                                    setOrientation((prev) => (prev === 'H' ? 'V' : 'H'))
+                                }
+                            >
+                                Rotate Ship
+                            </button>
+                        )}
+                        <button
+                            className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600 transition"
+                            onClick={resetPlacementHandler}
+                        >
+                            Reset Placement
+                        </button>
+                        {!placingShip && (
+                            <button
+                                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
+                                onClick={confirmPlacementHandler}
+                            >
+                                Confirm Placement
+                            </button>
+                        )}
+                    </div>
+                </div>
             )}
-          </div>
 
+            {/* Boards */}
+            <div className="flex flex-col md:flex-row gap-10">
+                {/* Left board */}
+                <div className="text-center">
+                    <h2 className="text-2xl font-semibold mb-2">
+                        {gameStarted ? 'AI Board' : 'Your Board (Place Ships)'}
+                    </h2>
+                    <Board
+                        board={gameStarted ? aiBoard : playerBoard}
+                        onCellClick={gameStarted ? handleAttack : handlePlayerPlace}
+                        disabled={loading || aiPlaying}
+                        showShips={!gameStarted} // show player ships during placement
+                    />
+                </div>
+
+                {/* Right board only visible after game starts */}
+                {gameStarted && (
+                    <div className="text-center">
+                        <h2 className="text-2xl font-semibold mb-2">Your Board</h2>
+                        <Board
+                            board={playerBoard}
+                            onCellClick={() => {}}
+                            disabled={true}
+                            showShips={true}
+                        />
+                    </div>
+                )}
+            </div>
         </div>
-      </div>
-  );
+    );
 };
 
 export default App;

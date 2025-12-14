@@ -1,75 +1,84 @@
-import os
-
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify
 from flask_cors import CORS
-from pyswip import Prolog
 
-app = Flask(__name__, static_folder="../frontend/build")
-CORS(app)
+from game import BattleshipGame
 
-prolog = Prolog()
-prolog.consult("cafes.pl")
-
-
-def clear_preferences():
-    list(prolog.query("clear_prefs."))
+app = Flask(__name__)
+CORS(app)  # allow frontend to call API
+game = BattleshipGame()
+game.place_ai_ships()  # AI places ships at start
 
 
-def add_preference(key, value):
-    # Strings need quotes in Prolog
-    prolog.query(f"retractall(user_pref({key}, _))")
-    if isinstance(value, str):
-        value = value.lower()
-        prolog.assertz(f"user_pref({key}, {value})")
-    else:
-        prolog.assertz(f"user_pref({key}, {value})")
-
-
-@app.route("/recommend", methods=["POST"])
-def recommend():
-    """
-    Expected JSON:
-    {
-      "computer_friendly": "yes",
-      "budget": "medium",
-      "max_walk_time": "short",
-      "start_hour": 9.0,
-      "end_hour": 18.0,
-      "meal_type": "coffee",
-      "noise_level": "quiet",
-      "outdoor_seating": "dont_care"
-    }
-    """
-
-    data = request.json
-
-    clear_preferences()
-
-    for key, value in data.items():
-        add_preference(key, value)
-
-    results = []
-    for solution in prolog.query("recommend(P)."):
-        results.append(solution["P"])
-
+# -------- Player places ship --------
+@app.route('/place_ship', methods=['POST'])
+def place_ship():
+    data = request.get_json()
+    row = data['row']
+    col = data['col']
+    length = data['length']
+    orientation = data['orientation']
+    success = game.player_place_ship(row, col, length, orientation)
     return jsonify({
-        "recommendations": results
+        'success': success,
+        'player_board': game.player_board  # contains 'S' for ships
     })
 
 
-@app.route("/health", methods=["GET"])
-def health():
-    return jsonify({"status": "ok"})
+@app.route('/confirm_placement', methods=['POST'])
+def confirm_placement():
+    # Optionally, you could set a flag like game.placement_confirmed = True
+    # For now, just return the current boards
+    return jsonify({
+        'player_board': game.player_board,
+        'ai_board': [['~' if cell == 'S' else cell for cell in row_] for row_ in game.ai_board]
+    })
 
 
-@app.route("/", defaults={"path": ""})
-@app.route("/<path:path>")
-def serve(path):
-    if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
-        return send_from_directory(app.static_folder, path)
-    return send_from_directory(app.static_folder, "index.html")
+@app.route('/reset_placement', methods=['POST'])
+def reset_placement():
+    game.reset_player_board()
+    return jsonify({'player_board': game.player_board})
 
 
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port, debug=True)
+def hide_ai_ships(board):
+    """Hide AI ships from the player unless they are hit"""
+    hidden = []
+    for row in board:
+        hidden.append([
+            '~' if cell == 'S' else cell
+            for cell in row
+        ])
+    return hidden
+
+
+# -------- Attack --------
+@app.route('/attack', methods=['POST'])
+def attack():
+    data = request.json
+    row, col = data['row'], data['col']
+
+    player_result = game.player_attack(row, col)
+
+    ai_attacks = []
+    if game.current_turn == "ai":
+        ai_attacks = game.ai_take_turn()
+
+    return jsonify({
+        "player_result": player_result,
+        "ai_attacks": ai_attacks,
+        "player_board": game.player_board,
+        "ai_board": hide_ai_ships(game.ai_board)
+    })
+
+
+# -------- Get boards --------
+@app.route('/board', methods=['GET'])
+def board():
+    return jsonify({
+        'player_board': game.player_board,
+        'ai_board': [['~' if cell == 'S' else cell for cell in row_] for row_ in game.ai_board]
+    })
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
