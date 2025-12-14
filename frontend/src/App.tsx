@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import Board from './components/Board';
+import GameOverModal from './components/GameOverModal';
 import {
     attackCell,
     placeShip,
     resetPlacement as apiResetPlacement,
     confirmPlacement as apiConfirmPlacement,
-    restartGame as apiRestartGame
+    restartGame as apiRestartGame,
 } from './api';
+
+// ... keep your helper types and functions (generateShipQueue, sleep, diffBoardChanges) above or import them ...
 
 interface ShipQueueItem {
     length: number;
@@ -20,17 +23,16 @@ const generateShipQueue = (): ShipQueueItem[] => {
         { length: 2, count: 3 },
         { length: 1, count: 4 },
     ];
-    const queue: ShipQueueItem[] = [];
+    const q: ShipQueueItem[] = [];
     shipDefs.forEach(def => {
-        for (let i = 0; i < def.count; i++) queue.push({ length: def.length, orientation: 'H' });
+        for (let i = 0; i < def.count; i++) q.push({ length: def.length, orientation: 'H' });
     });
-    return queue;
+    return q;
 };
 
 const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
 
-type Highlight = { row: number; col: number; result: 'hit' | 'miss' };
-
+// copy diffBoardChanges from your project
 const diffBoardChanges = (
     prev: string[][],
     next: string[][]
@@ -45,6 +47,8 @@ const diffBoardChanges = (
     }
     return changes;
 };
+
+type Highlight = { row: number; col: number; result: 'hit' | 'miss' };
 
 const App: React.FC = () => {
     const [playerBoard, setPlayerBoard] = useState<string[][]>(Array(10).fill(null).map(() => Array(10).fill('~')));
@@ -63,9 +67,9 @@ const App: React.FC = () => {
     const [highlightCellsAI, setHighlightCellsAI] = useState<Highlight[] | null>(null);
 
     const [gameOver, setGameOver] = useState(false);
-    const [winner, setWinner] = useState<string | null>(null);
+    const [winner, setWinner] = useState<'player' | 'ai' | null>(null);
 
-    // ---------------- Player ship placement ----------------
+    // --------------- Placement handlers (unchanged) ---------------
     const handlePlayerPlace = async (row: number, col: number) => {
         if (!placingShip || gameStarted || gameOver) return;
         setLoading(true);
@@ -87,6 +91,8 @@ const App: React.FC = () => {
         setCurrentShipIndex(0);
         setOrientation('H');
         setGameStarted(false);
+        setGameOver(false);
+        setWinner(null);
         setLoading(false);
     };
 
@@ -97,25 +103,30 @@ const App: React.FC = () => {
         setPlayerBoard(data.player_board);
         setAiBoard(data.ai_board);
         setGameStarted(true);
-        setLoading(false);
-    };
-
-    // ---------------- Restart Game ----------------
-    const restartGameHandler = async () => {
-        setLoading(true);
-        const data = await apiRestartGame();
-        setPlayerBoard(data.player_board);
-        setAiBoard(data.ai_board);
-        setGameStarted(false);
-        setShipQueue(generateShipQueue());
-        setCurrentShipIndex(0);
-        setOrientation('H');
         setGameOver(false);
         setWinner(null);
         setLoading(false);
     };
 
-    // ---------------- Attack handlers ----------------
+    // --------------- Restart at any time ---------------
+    const restartGameHandler = async () => {
+        setLoading(true);
+        const data = await apiRestartGame();
+        // Reset frontend state to fresh placement (because server re-created game)
+        setPlayerBoard(data.player_board);
+        setAiBoard(data.ai_board);
+        setShipQueue(generateShipQueue());
+        setCurrentShipIndex(0);
+        setOrientation('H');
+        setGameStarted(false);
+        setGameOver(false);
+        setWinner(null);
+        setHighlightCellsAI(null);
+        setHighlightCellsPlayer(null);
+        setLoading(false);
+    };
+
+    // --------------- AI play / attack (reuse your playAiTurn / handleAttack) ---------------
     const playAiTurn = async (
         attacks: [number, number, 'hit' | 'miss'][],
         finalPlayerBoard: string[][]
@@ -150,9 +161,9 @@ const App: React.FC = () => {
 
             setPlayerBoard(tempBoard.map(row => [...row]));
             setHighlightCellsPlayer(highlights);
-            await sleep(500);
+            await sleep(700);
             setHighlightCellsPlayer(null);
-            await sleep(100);
+            await sleep(150);
         }
 
         setAiPlaying(false);
@@ -165,58 +176,69 @@ const App: React.FC = () => {
         const prevAiBoard = aiBoard.map(r => [...r]);
         const data = await attackCell(row, col);
 
-        // Compute only the cells that changed in this attack (primary + revealed)
-        const changes = diffBoardChanges(prevAiBoard, data.ai_board)
-            .filter(ch => ch.to === 'X' || ch.to === 'O');
-
-        // Animate highlights first
+        // first animate player-side changes (highlights) before applying final ai board
+        const changes = diffBoardChanges(prevAiBoard, data.ai_board).filter(ch => ch.to === 'X' || ch.to === 'O');
         if (changes.length > 0) {
-            const highlights: Highlight[] = changes.map(ch => ({
-                row: ch.row,
-                col: ch.col,
-                result: ch.to === 'X' ? 'hit' : 'miss'
-            }));
+            const highlights: Highlight[] = changes.map(ch => ({ row: ch.row, col: ch.col, result: ch.to === 'X' ? 'hit' : 'miss' }));
             setHighlightCellsAI(highlights);
-            await sleep(500); // animation duration
+            await sleep(450); // shorter so it feels snappier with new animations
             setHighlightCellsAI(null);
         }
 
-        // Apply AI board updates AFTER animation
+        // apply ai board update after the short highlight
         setAiBoard(data.ai_board);
 
-        // If AI attacks, play them
+        // if AI attacks, play them (they will animate)
         if (data.ai_attacks && data.ai_attacks.length > 0) {
             await playAiTurn(data.ai_attacks, data.player_board);
         }
 
+        // update final player board
         setPlayerBoard(data.player_board);
 
-        // Check for game over
+        // handle game over state (type-safe)
         if (data.game_over) {
             setGameOver(true);
-            setWinner(data.winner ?? null);
+            setWinner((data.winner ?? null) as 'player' | 'ai' | null);
         }
 
         setLoading(false);
     };
 
+    // --------------- UI ---------------
     return (
-        <div className="min-h-screen flex flex-col items-center justify-start bg-gradient-to-b from-blue-100 to-blue-300 p-6">
-            <h1 className="text-4xl font-bold text-gray-800 mb-4">Battleships</h1>
+        <div className="min-h-screen flex flex-col items-center bg-gradient-to-b from-blue-100 to-blue-300 p-6">
+            <header className="w-full max-w-5xl flex items-center justify-between mb-6">
+                <h1 className="text-4xl font-bold text-gray-800">Battleships</h1>
 
-            {/* Game over modal */}
-            {gameOver && (
-                <div className="fixed top-0 left-0 w-full h-full bg-black/50 flex flex-col items-center justify-center z-50">
-                    <div className="bg-white p-8 rounded-lg shadow-lg text-center">
-                        <h2 className="text-3xl font-bold mb-4">{winner === 'player' ? 'You Win!' : 'You Lose!'}</h2>
-                        <button
-                            className="px-6 py-3 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
-                            onClick={restartGameHandler}
-                        >
-                            Restart Game
-                        </button>
+                <div className="flex items-center gap-3">
+                    {/* Show restart anytime */}
+                    <button
+                        className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition"
+                        onClick={restartGameHandler}
+                        disabled={loading}
+                        title="Restart game (server-side)"
+                    >
+                        Restart Game
+                    </button>
+
+                    {/* status badge */}
+                    <div className="px-3 py-1 rounded bg-white/60 text-sm text-gray-800">
+                        {gameOver ? (winner === 'player' ? '🎉 You won' : '💀 You lost') : gameStarted ? 'Game in progress' : 'Placement phase'}
                     </div>
                 </div>
+            </header>
+
+            {/* GameOver modal (fancier) */}
+            {gameOver && winner && (
+                <GameOverModal
+                    winner={winner}
+                    onRestart={restartGameHandler}
+                    onClose={() => {
+                        // keep modal dismissible but game remains ended
+                        setGameOver(false);
+                    }}
+                />
             )}
 
             {!gameStarted && !gameOver && (
@@ -255,9 +277,8 @@ const App: React.FC = () => {
                 </div>
             )}
 
-            <div className="flex flex-col md:flex-row gap-10">
-                {/* Left: AI board while playing, player board while placing */}
-                <div className="text-center">
+            <div className="flex flex-col md:flex-row gap-10 w-full max-w-5xl">
+                <div className="text-center w-full md:w-1/2">
                     <h2 className="text-2xl font-semibold mb-2">{gameStarted ? 'AI Board' : 'Your Board (Place Ships)'}</h2>
                     <Board
                         board={gameStarted ? aiBoard : playerBoard}
@@ -268,9 +289,8 @@ const App: React.FC = () => {
                     />
                 </div>
 
-                {/* Right: show player board after game starts */}
                 {gameStarted && (
-                    <div className="text-center">
+                    <div className="text-center w-full md:w-1/2">
                         <h2 className="text-2xl font-semibold mb-2">Your Board</h2>
                         <Board
                             board={playerBoard}
