@@ -278,30 +278,37 @@ const App: React.FC = () => {
             )}
 
             <div className="flex flex-col md:flex-row gap-10 w-full max-w-5xl">
+                {/* Left: always player board */}
                 <div className="text-center w-full md:w-1/2">
-                    <h2 className="text-2xl font-semibold mb-2">{gameStarted ? 'AI Board' : 'Your Board (Place Ships)'}</h2>
+                    <h2 className="text-2xl font-semibold mb-2">
+                        {gameStarted ? 'Your Board' : 'Place Your Ships'}
+                    </h2>
                     <Board
-                        board={gameStarted ? aiBoard : playerBoard}
-                        onCellClick={gameStarted ? handleAttack : handlePlayerPlace}
+                        board={playerBoard}
+                        onCellClick={gameStarted ? () => {
+                        } : handlePlayerPlace}
                         disabled={loading || aiPlaying || gameOver}
-                        showShips={!gameStarted}
-                        highlightCells={gameStarted ? highlightCellsAI : highlightCellsPlayer}
+                        showShips={true}
+                        highlightCells={highlightCellsPlayer}
                     />
                 </div>
 
-                {gameStarted && (
-                    <div className="text-center w-full md:w-1/2">
-                        <h2 className="text-2xl font-semibold mb-2">Your Board</h2>
-                        <Board
-                            board={playerBoard}
-                            onCellClick={() => {}}
-                            disabled={true}
-                            showShips={true}
-                            highlightCells={highlightCellsPlayer}
-                        />
-                    </div>
-                )}
+                {/* Right: AI board only after game starts */}
+                <div className="text-center w-full md:w-1/2">
+                    <h2 className="text-2xl font-semibold mb-2">
+                        {gameStarted ? 'AI Board' : 'Waiting for game to start'}
+                    </h2>
+                    <Board
+                        board={gameStarted ? aiBoard : Array(10).fill(null).map(() => Array(10).fill('~'))}
+                        onCellClick={gameStarted ? handleAttack : () => {
+                        }}
+                        disabled={!gameStarted || loading || aiPlaying || gameOver}
+                        showShips={false}
+                        highlightCells={highlightCellsAI}
+                    />
+                </div>
             </div>
+
         </div>
     );
 };
