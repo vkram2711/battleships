@@ -2,9 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Add after tailwind utilities in your main CSS file */
-
-/* Shell drop: cell moves down then settles with a little squash */
+/* --- Shell landing + impact ring (kept from previous) --- */
 @keyframes shell-drop {
     0%   { transform: translateY(-22px) scale(0.95); opacity: 0; }
     45%  { transform: translateY(6px)   scale(1.08); opacity: 1; }
@@ -12,45 +10,28 @@
     100% { transform: translateY(0)     scale(1); }
 }
 
-/* Impact ring expands and fades */
 @keyframes impact-ring {
-    0%   { box-shadow: 0 0 0 0 rgba(255,255,255,0.28); opacity: 1; }
-    60%  { box-shadow: 0 0 0 14px rgba(255,255,255,0.06); opacity: 0.6; }
-    100% { box-shadow: 0 0 0 28px rgba(255,255,255,0); opacity: 0; }
+    0%   { opacity: 0.95; transform: scale(0.4); }
+    60%  { opacity: 0.6; transform: scale(1.2); }
+    100% { opacity: 0; transform: scale(1.8); }
 }
 
-/* Symbol pop (emoji) - pop + settle */
-@keyframes symbol-pop {
-    0%   { transform: scale(0.5); opacity: 0; }
-    55%  { transform: scale(1.33); opacity: 1; }
-    100% { transform: scale(1); opacity: 1; }
-}
-
-/* Debris particle (simple outward fade) */
-@keyframes debris-fly {
-    0%   { transform: translate(0,0) scale(0.4); opacity: 1; }
-    60%  { transform: translate(var(--dx), var(--dy)) scale(1); opacity: 1; }
-    100% { transform: translate(calc(var(--dx) * 1.2), calc(var(--dy) * 1.2)) scale(0.6); opacity: 0; }
-}
-
-/* utility classes you can apply */
 .shell-drop {
-    animation: shell-drop 450ms cubic-bezier(.12,.85,.22,1);
+    animation: shell-drop 420ms cubic-bezier(.12,.85,.22,1);
 }
-
 .impact-ring {
-    animation: impact-ring 500ms cubic-bezier(.12,.85,.22,1);
+    animation: impact-ring 520ms cubic-bezier(.12,.85,.22,1);
     border-radius: 6px;
-    position: relative;
+    pointer-events: none;
 }
 
-/* symbol animation */
-.symbol-pop {
-    animation: symbol-pop 420ms cubic-bezier(.2,.9,.28,1);
+/* --- Round debris (miss) --- */
+@keyframes debris-round {
+    0% { transform: translate(0,0) scale(0.3); opacity: 1; }
+    60% { transform: translate(var(--dx), var(--dy)) scale(1); opacity: 1; }
+    100% { transform: translate(calc(var(--dx) * 1.25), calc(var(--dy) * 1.25)) scale(0.6); opacity: 0; }
 }
-
-/* debris base */
-.debris {
+.debris-round {
     position: absolute;
     width: 6px;
     height: 6px;
@@ -58,19 +39,44 @@
     background: rgba(255,255,255,0.9);
     pointer-events: none;
     transform-origin: center;
-    animation: debris-fly 520ms cubic-bezier(.12,.85,.22,1);
+    animation: debris-round 520ms cubic-bezier(.12,.85,.22,1) forwards;
 }
 
-/* small color variants for hits/misses */
-.hit-ring {
-    /* subtle red tint inside ring */
-    box-shadow: inset 0 0 10px rgba(255,80,80,0.06);
+/* --- Spike (hit) elements --- */
+@keyframes spike-fly {
+    0%   { transform: rotate(var(--angle)) translateY(0) scaleY(0.25); opacity: 1; }
+    60%  { transform: rotate(var(--angle)) translateY(var(--dist)) scaleY(1.05); opacity: 1; }
+    100% { transform: rotate(var(--angle)) translateY(calc(var(--dist) * 1.15)) scaleY(0.85); opacity: 0; }
 }
-.miss-ring {
-    box-shadow: inset 0 0 8px rgba(96,165,250,0.04);
+.spike {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 2px;
+    height: 14px;
+    transform-origin: center;
+    border-radius: 2px;
+    pointer-events: none;
+    animation: spike-fly 440ms cubic-bezier(.12,.85,.22,1) forwards;
 }
 
-/* optional: smoother transitions on background color */
+/* color variants */
+.spike.hit { background: linear-gradient(180deg, rgba(255,200,80,1), rgba(255,80,60,1)); box-shadow: 0 2px 6px rgba(255,80,60,0.18); }
+.spike.miss { background: linear-gradient(180deg, rgba(180,210,255,1), rgba(100,150,255,1)); box-shadow: 0 2px 6px rgba(60,120,220,0.12); }
+
+/* symbol pop (emoji) */
+@keyframes symbol-pop {
+    0%   { transform: scale(0.45); opacity: 0; }
+    60%  { transform: scale(1.22); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+}
+.symbol-pop { animation: symbol-pop 380ms cubic-bezier(.2,.9,.28,1) forwards; }
+
+/* nicer smooth cell background/box-shadow transitions */
 .cell-smooth {
     transition: background-color 220ms ease, transform 260ms ease, box-shadow 260ms ease;
 }
+
+/* subtle ring tint */
+.hit-ring { box-shadow: 0 0 0 6px rgba(255,120,120,0.12); border-radius:6px; }
+.miss-ring { box-shadow: 0 0 0 6px rgba(100,150,255,0.08); border-radius:6px; }
