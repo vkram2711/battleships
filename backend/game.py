@@ -14,6 +14,7 @@ class BattleshipGame:
         self.current_turn = "player"
         self.game_over = False
         self.winner = None  # "player" or "ai" or None
+        self.started = False
 
     def reset_player_board(self):
         """Clears the player board and ships for new placement"""

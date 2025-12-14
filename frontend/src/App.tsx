@@ -7,6 +7,7 @@ import {
     resetPlacement as apiResetPlacement,
     confirmPlacement as apiConfirmPlacement,
     restartGame as apiRestartGame,
+    getBoard,
 } from './api';
 
 // ... keep your helper types and functions (generateShipQueue, sleep, diffBoardChanges) above or import them ...
@@ -88,17 +89,63 @@ const App: React.FC = () => {
         setLoading(false);
     };
 
+    React.useEffect(() => {
+        const restore = async () => {
+            setLoading(true);
+            try {
+                const data = await getBoard();
+                if (data.player_board) setPlayerBoard(data.player_board);
+                if (data.ai_board) setAiBoard(data.ai_board);
+
+                // restore game over / winner
+                if (data.game_over) {
+                    setGameOver(true);
+                    setWinner((data.winner ?? null) as 'player'|'ai'|null);
+                } else {
+                    setGameOver(false);
+                    setWinner(null);
+                }
+
+                // started flag -> whether confirm was clicked server-side
+                const started = !!data.started;
+                setGameStarted(started);
+
+                // restore placement progress: set currentShipIndex to number of placed ships
+                // we returned player_ships array in /board, so use its length
+                const placedCount = data.player_ships ? data.player_ships.length : 0;
+
+                // Resume queue from where the user left off
+                setShipQueue(generateShipQueue());
+                setCurrentShipIndex(placedCount);
+
+                // If game already started, ensure aiBoard is from server
+                if (started && data.ai_board) {
+                    setAiBoard(data.ai_board);
+                }
+            } catch (err) {
+                console.error('Failed to restore board:', err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        restore();
+    }, []);
+
 
     const resetPlacementHandler = async () => {
         setLoading(true);
         const data = await apiResetPlacement();
         setPlayerBoard(data.player_board);
-        setShipQueue(generateShipQueue());
+
+        const newQueue = generateShipQueue();
+        setShipQueue(newQueue);
         setCurrentShipIndex(0);
         setOrientation('H');
         setGameStarted(false);
         setGameOver(false);
         setWinner(null);
+
         setLoading(false);
     };
 

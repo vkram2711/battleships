@@ -61,8 +61,16 @@ export const restartGame = async (): Promise<RestartGameResponse> => {
     return data;
 };
 
-// Optional: get boards (if needed)
-export const getBoard = async (): Promise<ConfirmPlacementResponse> => {
+export interface BoardResponse {
+    player_board: string[][];
+    ai_board: string[][];
+    game_over?: boolean;
+    winner?: 'player'|'ai'|null;
+    started?: boolean;
+    player_ships?: { row:number; col:number; length:number; orientation:'H'|'V' }[];
+}
+
+export const getBoard = async (): Promise<BoardResponse> => {
     const { data } = await axios.get(`${API_BASE}/board`);
     return data;
 };

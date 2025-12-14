@@ -24,22 +24,26 @@ def place_ship():
     })
 
 
+# confirm_placement: set started True
 @app.route('/confirm_placement', methods=['POST'])
 def confirm_placement():
-    # Reset game-over flags if any (starting a play session)
+    # mark game as started so clients know placement finished
+    game.started = True
     game.game_over = False
     game.winner = None
-    # Return the boards (AI board hidden)
     return jsonify({
         'player_board': game.player_board,
-        'ai_board': [['~' if cell == 'S' else cell for cell in row_] for row_ in game.ai_board]
+        'ai_board': [['~' if cell == 'S' else cell for cell in row_] for row_ in game.ai_board],
+        'started': game.started
     })
 
 
+# reset_placement: clear player placement and mark started False
 @app.route('/reset_placement', methods=['POST'])
 def reset_placement():
     game.reset_player_board()
-    return jsonify({'player_board': game.player_board})
+    game.started = False
+    return jsonify({'player_board': game.player_board, 'started': game.started})
 
 
 def hide_ai_ships(board):
@@ -98,28 +102,38 @@ def attack():
 
 
 # -------- Restart whole game --------
-@app.route('/restart_game', methods=['POST'])
-def restart_game():
-    # Reset everything and re-place AI ships
-    game.reset_full_game()
-    game.place_ai_ships()
-    return jsonify({
-        'player_board': game.player_board,
-        'ai_board': [['~' if cell == 'S' else cell for cell in row_] for row_ in game.ai_board],
-        'game_over': game.game_over,
-        'winner': game.winner
-    })
-
-
-# -------- Get boards --------
+# board endpoint: return started, player_ships list (so client can restore placement progress)
 @app.route('/board', methods=['GET'])
 def board():
+    # serialize player_ships (list of tuples) to list-of-dicts for JSON
+    player_ships_serialized = [
+        {'row': s[0], 'col': s[1], 'length': s[2], 'orientation': s[3]} for s in game.player_ships
+    ]
     return jsonify({
         'player_board': game.player_board,
         'ai_board': [['~' if cell == 'S' else cell for cell in row_] for row_ in game.ai_board],
         'game_over': game.game_over,
-        'winner': game.winner
+        'winner': game.winner,
+        'started': game.started,
+        'player_ships': player_ships_serialized
     })
+
+
+# restart_game: reset started flag too
+@app.route('/restart_game', methods=['POST'])
+def restart_game():
+    game.reset_full_game()
+    game.place_ai_ships()
+    game.started = False
+    return jsonify({
+        'player_board': game.player_board,
+        'ai_board': [['~' if cell == 'S' else cell for cell in row_] for row_ in game.ai_board],
+        'game_over': game.game_over,
+        'winner': game.winner,
+        'started': game.started,
+        'player_ships': []
+    })
+
 
 
 if __name__ == '__main__':
