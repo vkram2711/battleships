@@ -68,20 +68,26 @@ const App: React.FC = () => {
 
     const [gameOver, setGameOver] = useState(false);
     const [winner, setWinner] = useState<'player' | 'ai' | null>(null);
+    const [notification, setNotification] = useState<string | null>(null);
 
+    const showNotification = (msg: string) => {
+        setNotification(msg);
+        setTimeout(() => setNotification(null), 2000); // auto-hide after 2s
+    };
     // --------------- Placement handlers (unchanged) ---------------
     const handlePlayerPlace = async (row: number, col: number) => {
-        if (!placingShip || gameStarted || gameOver) return;
+        if (!placingShip || gameStarted) return;
         setLoading(true);
         const data = await placeShip(row, col, placingShip.length, orientation);
         if (data.success) {
             setPlayerBoard(data.player_board);
             setCurrentShipIndex(prev => prev + 1);
         } else {
-            alert('Invalid placement! Ships cannot overlap or touch.');
+            showNotification('❌ Invalid placement! Ships cannot overlap or touch.');
         }
         setLoading(false);
     };
+
 
     const resetPlacementHandler = async () => {
         setLoading(true);
@@ -308,6 +314,13 @@ const App: React.FC = () => {
                     />
                 </div>
             </div>
+            {notification && (
+                <div className="fixed top-6 left-1/2 transform -translate-x-1/2 z-50">
+                    <div className="bg-red-500 text-white px-4 py-2 rounded shadow-lg animate-bounce">
+                        {notification}
+                    </div>
+                </div>
+            )}
 
         </div>
     );
