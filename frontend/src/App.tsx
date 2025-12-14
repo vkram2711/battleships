@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
 import Board from './components/Board';
-import { attackCell, placeShip, resetPlacement as apiResetPlacement, confirmPlacement as apiConfirmPlacement } from './api';
+import {
+    attackCell,
+    placeShip,
+    resetPlacement as apiResetPlacement,
+    confirmPlacement as apiConfirmPlacement,
+} from './api';
 
 interface ShipQueueItem {
     length: number;
@@ -16,14 +21,29 @@ const generateShipQueue = (): ShipQueueItem[] => {
     ];
     const queue: ShipQueueItem[] = [];
     shipDefs.forEach(def => {
-        for (let i = 0; i < def.count; i++) {
-            queue.push({ length: def.length, orientation: 'H' });
-        }
+        for (let i = 0; i < def.count; i++) queue.push({ length: def.length, orientation: 'H' });
     });
     return queue;
 };
 
 const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
+
+type Highlight = { row: number; col: number; result: 'hit' | 'miss' };
+
+const diffBoardChanges = (
+    prev: string[][],
+    next: string[][]
+): { row: number; col: number; to: string; from: string }[] => {
+    const changes: { row: number; col: number; to: string; from: string }[] = [];
+    for (let r = 0; r < prev.length; r++) {
+        for (let c = 0; c < prev[r].length; c++) {
+            if (prev[r][c] !== next[r][c]) {
+                changes.push({ row: r, col: c, from: prev[r][c], to: next[r][c] });
+            }
+        }
+    }
+    return changes;
+};
 
 const App: React.FC = () => {
     const [playerBoard, setPlayerBoard] = useState<string[][]>(
@@ -42,8 +62,9 @@ const App: React.FC = () => {
     const [gameStarted, setGameStarted] = useState(false);
     const [aiPlaying, setAiPlaying] = useState(false);
 
-    const [highlightCellPlayer, setHighlightCellPlayer] = useState<{ row: number; col: number; result: 'hit' | 'miss' } | null>(null);
-    const [highlightCellAI, setHighlightCellAI] = useState<{ row: number; col: number; result: 'hit' | 'miss' } | null>(null);
+    // Now store *arrays* of highlights for simultaneous animation
+    const [highlightCellsPlayer, setHighlightCellsPlayer] = useState<Highlight[] | null>(null);
+    const [highlightCellsAI, setHighlightCellsAI] = useState<Highlight[] | null>(null);
 
     const handlePlayerPlace = async (row: number, col: number) => {
         if (!placingShip || gameStarted) return;
@@ -79,42 +100,107 @@ const App: React.FC = () => {
         setLoading(false);
     };
 
-    const playAiTurn = async (attacks: [number, number, 'hit' | 'miss'][], finalPlayerBoard: string[][]) => {
+    // Play AI attacks one-by-one, but animate any simultaneous adjacent 'O' reveals at the same step
+    const playAiTurn = async (
+        attacks: [number, number, 'hit' | 'miss'][],
+        finalPlayerBoard: string[][]
+    ) => {
         setAiPlaying(true);
         let tempBoard = playerBoard.map(row => [...row]);
 
-        for (const [row, col, result] of attacks) {
-            if (result === 'hit' || result === 'miss') {
-                setHighlightCellPlayer({ row, col, result });
+        for (let i = 0; i < attacks.length; i++) {
+            const [r, c, res] = attacks[i];
+
+            // snapshot before applying this step
+            const prevTemp = tempBoard.map(row => [...row]);
+
+            // Apply the primary attacked cell from the final board
+            tempBoard[r][c] = finalPlayerBoard[r][c];
+
+            // Compute all changes between prevTemp and finalPlayerBoard
+            const allChanges = diffBoardChanges(prevTemp, finalPlayerBoard)
+                // consider only visual changes (hits or misses)
+                .filter(ch => ch.to === 'X' || ch.to === 'O');
+
+            // Build set of future primary attack coords so we can exclude them now
+            const futureCoords = new Set<string>();
+            for (let j = i + 1; j < attacks.length; j++) {
+                const [fr, fc] = attacks[j];
+                futureCoords.add(`${fr},${fc}`);
             }
-            tempBoard[row][col] = finalPlayerBoard[row][col];
-            setPlayerBoard([...tempBoard]);
+
+            // Keep only changes that are NOT future primary attack targets.
+            // This ensures cells that are scheduled to be attacked later are animated on their own step.
+            const toAnimate = allChanges.filter(ch => !futureCoords.has(`${ch.row},${ch.col}`));
+
+            // Apply those changes to tempBoard (so the UI matches)
+            for (const ch of toAnimate) {
+                tempBoard[ch.row][ch.col] = finalPlayerBoard[ch.row][ch.col];
+            }
+
+            // Map to highlight array: X -> hit, O -> miss
+            const highlights: { row: number; col: number; result: 'hit' | 'miss' }[] = toAnimate.map(ch => ({
+                row: ch.row,
+                col: ch.col,
+                result: finalPlayerBoard[ch.row][ch.col] === 'X' ? 'hit' : 'miss'
+            }));
+
+            // If nothing special to animate (rare), at least animate the primary cell
+            if (highlights.length === 0) {
+                highlights.push({ row: r, col: c, result: res });
+                tempBoard[r][c] = finalPlayerBoard[r][c]; // ensure applied
+            }
+
+            // Update UI and animate simultaneously
+            setPlayerBoard(tempBoard.map(row => [...row]));
+            setHighlightCellsPlayer(highlights);
+            // animation duration (tweak as desired)
             await sleep(700);
-            setHighlightCellPlayer(null);
+            setHighlightCellsPlayer(null);
+
+            // little pause before next AI move
             await sleep(150);
         }
 
         setAiPlaying(false);
     };
 
+
+    // Player attack handler: highlight attacked cell and any simultaneous reveals (adjacent O's)
     const handleAttack = async (row: number, col: number) => {
         if (!gameStarted || aiPlaying || loading) return;
         setLoading(true);
 
+        const prevAiBoard = aiBoard.map(r => [...r]);
         const data = await attackCell(row, col);
 
-        // Highlight player attack
-        if (data.player_result === 'hit' || data.player_result === 'miss') {
-            setHighlightCellAI({ row, col, result: data.player_result });
-        }
-        setAiBoard(data.ai_board);
-        await sleep(500);
-        setHighlightCellAI(null);
+        // compute diffs between previous AI board and returned AI board
+        const changes = diffBoardChanges(prevAiBoard, data.ai_board)
+            .filter(ch => ch.to === 'X' || ch.to === 'O');
 
-        // AI turn
-        if (data.ai_attacks.length > 0) {
+        // apply ai board immediately
+        setAiBoard(data.ai_board);
+
+        // prepare highlights simultaneously (map 'X' -> hit, 'O' -> miss)
+        if (changes.length > 0) {
+            const highlights: Highlight[] = changes.map(ch => ({
+                row: ch.row,
+                col: ch.col,
+                result: ch.to === 'X' ? 'hit' : 'miss'
+            }));
+            setHighlightCellsAI(highlights);
+            await sleep(700);
+            setHighlightCellsAI(null);
+        }
+
+        // If there are AI attacks in response, play them (they will animate their own simultaneous reveals)
+        if (data.ai_attacks && data.ai_attacks.length > 0) {
             await playAiTurn(data.ai_attacks, data.player_board);
         }
+
+        // update final boards (player board may already be updated via playAiTurn)
+        setPlayerBoard(data.player_board);
+        setAiBoard(data.ai_board);
 
         setLoading(false);
     };
@@ -160,7 +246,7 @@ const App: React.FC = () => {
             )}
 
             <div className="flex flex-col md:flex-row gap-10">
-                {/* AI board */}
+                {/* Left: AI board while playing, player board while placing */}
                 <div className="text-center">
                     <h2 className="text-2xl font-semibold mb-2">{gameStarted ? 'AI Board' : 'Your Board (Place Ships)'}</h2>
                     <Board
@@ -168,11 +254,11 @@ const App: React.FC = () => {
                         onCellClick={gameStarted ? handleAttack : handlePlayerPlace}
                         disabled={loading || aiPlaying}
                         showShips={!gameStarted}
-                        highlightCell={highlightCellAI}
+                        highlightCells={gameStarted ? highlightCellsAI : highlightCellsPlayer}
                     />
                 </div>
 
-                {/* Player board */}
+                {/* Right: show player board after game starts */}
                 {gameStarted && (
                     <div className="text-center">
                         <h2 className="text-2xl font-semibold mb-2">Your Board</h2>
@@ -181,7 +267,7 @@ const App: React.FC = () => {
                             onCellClick={() => {}}
                             disabled={true}
                             showShips={true}
-                            highlightCell={highlightCellPlayer}
+                            highlightCells={highlightCellsPlayer}
                         />
                     </div>
                 )}
