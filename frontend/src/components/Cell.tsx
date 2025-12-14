@@ -4,28 +4,49 @@ interface CellProps {
     row: number;
     col: number;
     value: string;
-    onClick: (row:number,col:number)=>void;
+    onClick: (row: number, col: number) => void;
     disabled?: boolean;
-    showShip?: boolean; // NEW
+    showShips?: boolean;
+    highlight?: { result: 'hit' | 'miss' } | null;
 }
 
-const Cell: React.FC<CellProps> = ({row,col,value,onClick,disabled,showShip=false}) => {
-    const getColor = () => {
-        if(value==='X') return 'bg-red-500';
-        if(value==='O') return 'bg-blue-400';
-        if(value==='S' && showShip) return 'bg-gray-700'; // display ship during placement
-        return 'bg-gray-300'; // empty cell
-    }
+const Cell: React.FC<CellProps> = ({
+                                       row,
+                                       col,
+                                       value,
+                                       onClick,
+                                       disabled = false,
+                                       showShips = false,
+                                       highlight = null,
+                                   }) => {
+    const isHighlighted = !!highlight;
+    const highlightClass = isHighlighted
+        ? highlight!.result === 'hit'
+            ? 'ring-4 ring-red-500 animate-pulse'
+            : 'ring-4 ring-blue-400 animate-pulse'
+        : '';
+
+    const cellColor = (() => {
+        if (value === 'X') return 'bg-red-500';
+        if (value === 'O') return 'bg-blue-300';
+        if (value === 'S' && showShips) return 'bg-gray-600';
+        return 'bg-blue-100 hover:bg-blue-200';
+    })();
 
     return (
-        <button
-            onClick={()=>onClick(row,col)}
-            className={`${getColor()} w-10 h-10 m-0.5 border border-black rounded-sm 
-      hover:scale-105 transition-transform duration-150
-      ${disabled || value==='X' || value==='O' ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
-            disabled={disabled || value==='X' || value==='O'}
-        />
-    )
-}
+        <div
+            onClick={() => !disabled && onClick(row, col)}
+            className={`
+        w-10 h-10 flex items-center justify-center
+        border border-blue-500 cursor-pointer
+        ${cellColor} ${highlightClass}
+        transition-transform duration-200
+      `}
+        >
+            {value === 'X' && '💥'}
+            {value === 'O' && '•'}
+        </div>
+    );
+};
 
 export default Cell;

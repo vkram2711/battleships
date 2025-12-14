@@ -1,10 +1,12 @@
-
 export interface AttackResponse {
     player_result: 'hit' | 'miss' | 'already';
     ai_attacks: [number, number, 'hit' | 'miss'][];
     player_board: string[][];
     ai_board: string[][];
 }
+
+
+
 // Attack AI board
 export async function attackCell(row: number, col: number): Promise<AttackResponse> {
     const response = await fetch('http://localhost:5000/attack', {
