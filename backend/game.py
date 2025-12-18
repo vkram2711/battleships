@@ -1,6 +1,6 @@
 import random
 
-from ai import PrologAI, SimpleAI
+from ai import PrologAI, SimpleAI, HeatmapAI
 
 
 class BattleshipGame:
@@ -11,7 +11,7 @@ class BattleshipGame:
         self.ai_ships = []
         self.player_ships = []
         self.ship_defs = [(4, 1), (3, 2), (2, 3), (1, 4)]  # length, count
-        self.ai_logic = PrologAI(size)
+        self.ai_logic = HeatmapAI(size)
 
         # turn / game end state
         self.current_turn = "player"
