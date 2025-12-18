@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE = 'http://localhost:5000'; // change if your backend runs elsewhere
+const API_BASE = '';
 
 interface PlaceShipResponse {
     success: boolean;

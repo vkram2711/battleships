@@ -1,5 +1,7 @@
 import random
 
+from ai import PrologAI, SimpleAI
+
 
 class BattleshipGame:
     def __init__(self, size=10):
@@ -9,6 +11,7 @@ class BattleshipGame:
         self.ai_ships = []
         self.player_ships = []
         self.ship_defs = [(4, 1), (3, 2), (2, 3), (1, 4)]  # length, count
+        self.ai_logic = PrologAI(size)
 
         # turn / game end state
         self.current_turn = "player"
@@ -31,6 +34,7 @@ class BattleshipGame:
         self.current_turn = "player"
         self.game_over = False
         self.winner = None
+        self.ai_logic.reset()
 
     # ----------- Ship placement -----------
     def place_ai_ships(self):
@@ -156,30 +160,74 @@ class BattleshipGame:
         return result
 
     def ai_take_turn(self):
-        """AI attacks repeatedly until miss; returns list of (r,c,result). Sets game_over/winner when applicable."""
         attacks = []
 
         if self.game_over:
             return attacks
 
+        MAX_TRIES = 200  # safety cap (higher but kept bounded)
+        tries = 0
+
         while self.current_turn == "ai":
-            row, col = random.randint(0, self.size - 1), random.randint(0, self.size - 1)
+            tries += 1
+            if tries > MAX_TRIES:
+                print("AI SAFETY BREAK: too many retries")
+                self.current_turn = "player"
+                break
+
+            # Ask AI for a move
+            row, col = self.ai_logic.next_move()
+            # Defensive: if AI returned None (no legal moves) break
+            if row is None:
+                self.current_turn = "player"
+                break
+
+            # Snapshot board and sunk state BEFORE applying the attack
+            prev_board = [list(r) for r in self.player_board]  # shallow copy of rows
+            prev_sunk_indices = set(i for i, ship in enumerate(self.player_ships) if self.is_ship_sunk(prev_board, ship))
+
+            # Apply attack
             result = self.attack(self.player_board, row, col)
 
             if result == 'already':
+                # ask AI again — but keep safety limit
                 continue
+
+            # After applying attack, determine which ships (if any) are newly sunk
+            newly_sunk_cells = []
+            curr_sunk_indices = set(i for i, ship in enumerate(self.player_ships) if self.is_ship_sunk(self.player_board, ship))
+            newly_sunk_indices = curr_sunk_indices - prev_sunk_indices
+            for idx in newly_sunk_indices:
+                ship = self.player_ships[idx]
+                srow, scol, slen, sorient = ship
+                for i in range(slen):
+                    r = srow + i if sorient == 'V' else srow
+                    c = scol + i if sorient == 'H' else scol
+                    newly_sunk_cells.append((r, c))
+
+            # Also compute any newly auto-marked misses ('O') that appeared after sinking (prev '~' -> current 'O')
+            newly_misses = []
+            for r in range(self.size):
+                for c in range(self.size):
+                    if prev_board[r][c] == '~' and self.player_board[r][c] == 'O':
+                        newly_misses.append((r, c))
+
+            # Inform AI about the result and the newly discovered info
+            # Note: we pass zero-based coords (as the AI expects)
+            self.ai_logic.record_result(row, col, result, newly_sunk=newly_sunk_cells, newly_misses=newly_misses)
 
             attacks.append((row, col, result))
 
-            # Check if player lost all ships
+            # Check game over
             if self.all_ships_sunk(self.player_ships, self.player_board):
                 self.game_over = True
                 self.winner = "ai"
-                # stop attacking further
                 break
 
+            # Switch turn on miss
             if result == 'miss':
-                self.current_turn = "player"  # switch turn
-            # else hit -> continue attacking
+                self.current_turn = "player"
 
         return attacks
+
+
