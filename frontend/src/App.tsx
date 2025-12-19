@@ -254,7 +254,6 @@ const App: React.FC = () => {
         // update final player board
         setPlayerBoard(data.player_board);
 
-        // handle game over state (type-safe)
         if (data.game_over) {
             setGameOver(true);
             setWinner((data.winner ?? null) as 'player' | 'ai' | null);
