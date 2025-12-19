@@ -35,7 +35,7 @@ class BattleshipGame:
         """Clears the player board and ships for new placement"""
         self.player_board = [['~'] * self.size for _ in range(self.size)]
         self.player_ships = []
-        # Do NOT reset AI ships here (this is only for placement reset)
+
 
     def reset_full_game(self):
         """Full restart of the entire game state (both sides)."""
@@ -177,7 +177,7 @@ class BattleshipGame:
         if self.game_over:
             return attacks
 
-        MAX_TRIES = 200  # safety cap (higher but kept bounded)
+        MAX_TRIES = 200  # safety cap
         tries = 0
 
         while self.current_turn == "ai":
@@ -202,7 +202,6 @@ class BattleshipGame:
             result = self.attack(self.player_board, row, col)
 
             if result == 'already':
-                # ask AI again — but keep safety limit
                 continue
 
             # After applying attack, determine which ships (if any) are newly sunk
@@ -217,7 +216,6 @@ class BattleshipGame:
                     c = scol + i if sorient == 'H' else scol
                     newly_sunk_cells.append((r, c))
 
-            # Also compute any newly auto-marked misses ('O') that appeared after sinking (prev '~' -> current 'O')
             newly_misses = []
             for r in range(self.size):
                 for c in range(self.size):
@@ -225,7 +223,6 @@ class BattleshipGame:
                         newly_misses.append((r, c))
 
             # Inform AI about the result and the newly discovered info
-            # Note: we pass zero-based coords (as the AI expects)
             self.ai_logic.record_result(row, col, result, newly_sunk=newly_sunk_cells, newly_misses=newly_misses)
 
             attacks.append((row, col, result))

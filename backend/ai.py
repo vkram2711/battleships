@@ -1,8 +1,7 @@
-import subprocess
 import random
+import subprocess
 from collections import deque
 from copy import deepcopy
-
 
 # Full ship list
 SHIPS = [4, 3, 3, 2, 2, 2, 1, 1, 1, 1]
@@ -13,10 +12,8 @@ class AI:
 
     def __init__(self, board_size):
         self.board_size = board_size
-        self.hits = []      # active hits (not yet sunk)
-        self.misses = []    # missed attacks
-
-
+        self.hits = []  # active hits (not yet sunk)
+        self.misses = []  # missed attacks
 
     def record_result(self, row, col, result, newly_sunk=None, newly_misses=None):
         """Record attack result and optionally newly sunk ship cells and newly auto-marked misses."""
@@ -79,7 +76,7 @@ class PrologAI(AI):
         def coords_to_text(lst):
             if not lst:
                 return '[]'
-            return '[' + ','.join(f'{r+1}-{c+1}' for (r, c) in lst) + ']'
+            return '[' + ','.join(f'{r + 1}-{c + 1}' for (r, c) in lst) + ']'
 
         # Build attacked list: hits + misses + sunk_cells (all converted to 1-based)
         attacked = set(self.hits) | set(self.misses) | set(self.sunk_cells)
@@ -154,7 +151,6 @@ class PrologAI(AI):
         cells = self._all_unattacked()
         return random.choice(cells) if cells else None
 
-
     def record_result(self, row, col, result, newly_sunk=None, newly_misses=None):
         # call base to update hits/misses
         super().record_result(row, col, result, newly_sunk=newly_sunk, newly_misses=newly_misses)
@@ -170,7 +166,6 @@ class PrologAI(AI):
     def reset(self):
         super().reset()
         self.sunk_cells = set()
-
 
 
 class HeatmapAI(AI):
@@ -190,7 +185,6 @@ class HeatmapAI(AI):
 
         if newly_misses:
             for (mr, mc) in newly_misses:
-                # already added to misses by base
                 if (mr, mc) in self.hits:
                     self.hits.remove((mr, mc))
         if newly_sunk:
@@ -252,13 +246,13 @@ class HeatmapAI(AI):
                 else:
                     # cluster not strictly aligned - propose orthogonal neighbors
                     for (r, c) in cluster:
-                        for (nr, nc) in [(r-1,c),(r+1,c),(r,c-1),(r,c+1)]:
+                        for (nr, nc) in [(r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1)]:
                             if self._valid_cell(nr, nc) and (nr, nc) not in attacked:
                                 candidates.add((nr, nc))
             else:
                 # singleton cluster: propose orthogonal neighbors
                 r, c = cluster[0]
-                for (nr, nc) in [(r-1,c),(r+1,c),(r,c-1),(r,c+1)]:
+                for (nr, nc) in [(r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1)]:
                     if self._valid_cell(nr, nc) and (nr, nc) not in attacked:
                         candidates.add((nr, nc))
 
@@ -269,7 +263,7 @@ class HeatmapAI(AI):
     def _hunt_mode(self, attacked):
         size = self.board_size
         # Initialize heatmap as 2D int grid
-        heatmap = [[0]*size for _ in range(size)]
+        heatmap = [[0] * size for _ in range(size)]
 
         # Compute placements for each remaining ship length
         for ship_len in self.remaining_ships:
@@ -278,7 +272,7 @@ class HeatmapAI(AI):
             # horizontal placements
             for r in range(size):
                 for c in range(size - ship_len + 1):
-                    positions = [(r, c+i) for i in range(ship_len)]
+                    positions = [(r, c + i) for i in range(ship_len)]
                     # skip placements that overlap attacked cells
                     if any(p in attacked for p in positions):
                         continue
@@ -288,7 +282,7 @@ class HeatmapAI(AI):
             # vertical placements
             for c in range(size):
                 for r in range(size - ship_len + 1):
-                    positions = [(r+i, c) for i in range(ship_len)]
+                    positions = [(r + i, c) for i in range(ship_len)]
                     if any(p in attacked for p in positions):
                         continue
                     for (pr, pc) in positions:
@@ -304,41 +298,41 @@ class HeatmapAI(AI):
                 v = heatmap[r][c]
                 if v > maxv:
                     maxv = v
-                    candidates = [(r,c)]
+                    candidates = [(r, c)]
                 elif v == maxv:
-                    candidates.append((r,c))
+                    candidates.append((r, c))
         # if heatmap all zeros fallback to checkerboard selection
         if maxv <= 0:
             # choose parity that has more available cells (or random)
-            parity_cells = [(r,c) for r in range(size) for c in range(size)
-                            if (r+c)%2==0 and (r,c) not in attacked]
+            parity_cells = [(r, c) for r in range(size) for c in range(size)
+                            if (r + c) % 2 == 0 and (r, c) not in attacked]
             if parity_cells:
                 return parity_cells
             # else any unattacked
-            return [(r,c) for r in range(size) for c in range(size) if (r,c) not in attacked]
+            return [(r, c) for r in range(size) for c in range(size) if (r, c) not in attacked]
         return candidates
 
     # choose best candidate: for now random among candidates; could use tie-breaking heuristics
     def _choose_best(self, candidates, attacked):
         # small ranking: prefer cells adjacent to hits (higher finishing chance)
         scored = []
-        for (r,c) in candidates:
+        for (r, c) in candidates:
             score = 0
             # adjacency bonus
-            for (dr,dc) in [(-1,0),(1,0),(0,-1),(0,1)]:
-                nr, nc = r+dr, c+dc
+            for (dr, dc) in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                nr, nc = r + dr, c + dc
                 if (nr, nc) in self.hits:
                     score += 3
             # prefer central cells slightly
-            center = (self.board_size-1)/2
-            dist = abs(r-center)+abs(c-center)
-            score += max(0, 2 - int(dist//4))  # small center bias
-            scored.append(((r,c), score))
+            center = (self.board_size - 1) / 2
+            dist = abs(r - center) + abs(c - center)
+            score += max(0, 2 - int(dist // 4))  # small center bias
+            scored.append(((r, c), score))
         if not scored:
             return random.choice(candidates)
         # find max score
-        maxscore = max(s for (_p,s) in scored)
-        best = [p for (p,s) in scored if s==maxscore]
+        maxscore = max(s for (_p, s) in scored)
+        best = [p for (p, s) in scored if s == maxscore]
         return random.choice(best)
 
     # --- helpers ---
@@ -357,9 +351,9 @@ class HeatmapAI(AI):
             while q:
                 cur = q.popleft()
                 cluster.append(cur)
-                r,c = cur
-                for nr,nc in [(r-1,c),(r+1,c),(r,c-1),(r,c+1)]:
-                    nb = (nr,nc)
+                r, c = cur
+                for nr, nc in [(r - 1, c), (r + 1, c), (r, c - 1), (r, c + 1)]:
+                    nb = (nr, nc)
                     if nb in remaining:
                         remaining.remove(nb)
                         q.append(nb)
@@ -370,8 +364,8 @@ class HeatmapAI(AI):
         """Return 'H' if same row, 'V' if same col, else None."""
         if len(cluster) < 2:
             return None
-        rows = {r for (r,c) in cluster}
-        cols = {c for (r,c) in cluster}
+        rows = {r for (r, c) in cluster}
+        cols = {c for (r, c) in cluster}
         if len(rows) == 1:
             return 'H'
         if len(cols) == 1:
