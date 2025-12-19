@@ -55,6 +55,7 @@ const App: React.FC = () => {
     const [playerBoard, setPlayerBoard] = useState<string[][]>(Array(10).fill(null).map(() => Array(10).fill('~')));
     const [aiBoard, setAiBoard] = useState<string[][]>(Array(10).fill(null).map(() => Array(10).fill('~')));
     const [loading, setLoading] = useState(false);
+    const [aiChoice, setAiChoice] = useState<'prolog' | 'heatmap' | 'simple'>('prolog');
 
     const [shipQueue, setShipQueue] = useState<ShipQueueItem[]>(generateShipQueue());
     const [currentShipIndex, setCurrentShipIndex] = useState(0);
@@ -118,6 +119,9 @@ const App: React.FC = () => {
                 setShipQueue(generateShipQueue());
                 setCurrentShipIndex(placedCount);
 
+                const chosen = data.ai_choice ?? 'prolog';
+                setAiChoice(chosen as 'prolog'|'heatmap'|'simple');
+
                 // If game already started, ensure aiBoard is from server
                 if (started && data.ai_board) {
                     setAiBoard(data.ai_board);
@@ -150,9 +154,9 @@ const App: React.FC = () => {
     };
 
     const confirmPlacementHandler = async () => {
-        if (placingShip) return alert('Place all ships before confirming!');
+        if (placingShip) return showNotification('Place all ships before confirming!');
         setLoading(true);
-        const data = await apiConfirmPlacement();
+        const data = await apiConfirmPlacement(aiChoice);
         setPlayerBoard(data.player_board);
         setAiBoard(data.ai_board);
         setGameStarted(true);
@@ -160,6 +164,7 @@ const App: React.FC = () => {
         setWinner(null);
         setLoading(false);
     };
+
 
     // --------------- Restart at any time ---------------
     const restartGameHandler = async () => {
@@ -303,30 +308,49 @@ const App: React.FC = () => {
                     ) : (
                         <p className="text-gray-700 mb-2">All ships placed! Confirm to start the game.</p>
                     )}
-                    <div className="flex justify-center gap-2">
-                        {placingShip && (
-                            <button
-                                className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition"
-                                onClick={() => setOrientation(prev => (prev === 'H' ? 'V' : 'H'))}
+                    {/* AI selector + placement controls */}
+                    <div className="flex flex-col md:flex-row items-center gap-3 justify-center mt-2">
+                        <div className="flex items-center gap-2">
+                            <label className="text-sm text-gray-700 mr-1">AI:</label>
+                            <select
+                                value={aiChoice}
+                                onChange={(e) => setAiChoice(e.target.value as 'prolog' | 'heatmap' | 'simple')}
+                                className="px-3 py-1 rounded border bg-white"
+                                disabled={gameStarted || loading}
                             >
-                                Rotate Ship
-                            </button>
-                        )}
-                        <button
-                            className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600 transition"
-                            onClick={resetPlacementHandler}
-                        >
-                            Reset Placement
-                        </button>
-                        {!placingShip && (
+                                <option value="prolog">Prolog (logic)</option>
+                                <option value="heatmap">Heatmap (probability)</option>
+                                <option value="simple">Simple (random)</option>
+                            </select>
+                        </div>
+
+                        <div className="flex justify-center gap-2">
+                            {placingShip && (
+                                <button
+                                    className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition"
+                                    onClick={() => setOrientation(prev => (prev === 'H' ? 'V' : 'H'))}
+                                >
+                                    Rotate Ship
+                                </button>
+                            )}
                             <button
-                                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
-                                onClick={confirmPlacementHandler}
+                                className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600 transition"
+                                onClick={resetPlacementHandler}
                             >
-                                Confirm Placement
+                                Reset Placement
                             </button>
-                        )}
+                            {!placingShip && (
+                                <button
+                                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition"
+                                    onClick={confirmPlacementHandler}
+                                    disabled={loading}
+                                >
+                                    Confirm Placement
+                                </button>
+                            )}
+                        </div>
                     </div>
+
                 </div>
             )}
 

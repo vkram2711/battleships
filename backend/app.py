@@ -29,16 +29,29 @@ def place_ship():
 # confirm_placement: set started True
 @app.route('/confirm_placement', methods=['POST'])
 def confirm_placement():
-    # mark game as started so clients know placement finished
+    data = request.get_json(silent=True) or {}
+    ai_choice = data.get('ai_choice', 'prolog')
+    # set ai logic according to choice
+    try:
+        game.set_ai_logic(ai_choice)
+        # store chosen AI for later retrieval
+        app.config['AI_CHOICE'] = ai_choice
+    except Exception as e:
+        # fallback to default
+        game.set_ai_logic('prolog')
+        app.config['AI_CHOICE'] = 'prolog'
+
+    # mark game as started (so board endpoint knows)
     game.started = True
     game.game_over = False
     game.winner = None
+
     return jsonify({
         'player_board': game.player_board,
         'ai_board': [['~' if cell == 'S' else cell for cell in row_] for row_ in game.ai_board],
+        'ai_choice': app.config.get('AI_CHOICE', 'prolog'),
         'started': game.started
     })
-
 
 # reset_placement: clear player placement and mark started False
 @app.route('/reset_placement', methods=['POST'])
@@ -106,7 +119,6 @@ def attack():
 # board endpoint: return started, player_ships list (so client can restore placement progress)
 @app.route('/board', methods=['GET'])
 def board():
-    # serialize player_ships (list of tuples) to list-of-dicts for JSON
     player_ships_serialized = [
         {'row': s[0], 'col': s[1], 'length': s[2], 'orientation': s[3]} for s in game.player_ships
     ]
@@ -116,23 +128,26 @@ def board():
         'game_over': game.game_over,
         'winner': game.winner,
         'started': game.started,
-        'player_ships': player_ships_serialized
+        'player_ships': player_ships_serialized,
+        'ai_choice': app.config.get('AI_CHOICE', 'prolog')
     })
 
 
-# restart_game: reset started flag too
 @app.route('/restart_game', methods=['POST'])
 def restart_game():
+    # reset full game
     game.reset_full_game()
     game.place_ai_ships()
-    game.started = False
+    ai_choice = app.config.get('AI_CHOICE', 'prolog')
+    game.set_ai_logic(ai_choice)
     return jsonify({
         'player_board': game.player_board,
         'ai_board': [['~' if cell == 'S' else cell for cell in row_] for row_ in game.ai_board],
         'game_over': game.game_over,
         'winner': game.winner,
         'started': game.started,
-        'player_ships': []
+        'player_ships': [],
+        'ai_choice': ai_choice
     })
 
 

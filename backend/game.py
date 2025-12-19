@@ -18,6 +18,18 @@ class BattleshipGame:
         self.game_over = False
         self.winner = None  # "player" or "ai" or None
         self.started = False
+        self.ai_logic = PrologAI(self.size)
+
+    def set_ai_logic(self, ai_name: str):
+        """Instantiate AI logic object according to ai_name."""
+        ai_name = (ai_name or '').lower()
+        if ai_name == 'heatmap':
+            self.ai_logic = HeatmapAI(self.size)
+        elif ai_name == 'simple':
+            self.ai_logic = SimpleAI(self.size)
+        else:
+            # default to Prolog-based logic
+            self.ai_logic = PrologAI(self.size)
 
     def reset_player_board(self):
         """Clears the player board and ships for new placement"""

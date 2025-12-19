@@ -17,6 +17,7 @@ class AI:
         self.misses = []    # missed attacks
 
 
+
     def record_result(self, row, col, result, newly_sunk=None, newly_misses=None):
         """Record attack result and optionally newly sunk ship cells and newly auto-marked misses."""
         if result == 'hit':

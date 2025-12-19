@@ -40,8 +40,8 @@ export const placeShip = async (
     return data;
 };
 
-export const confirmPlacement = async (): Promise<ConfirmPlacementResponse> => {
-    const { data } = await axios.post(`${API_BASE}/confirm_placement`);
+export const confirmPlacement = async (aiChoice: 'prolog'|'heatmap'|'simple'): Promise<ConfirmPlacementResponse> => {
+    const { data } = await axios.post(`${API_BASE}/confirm_placement`, { ai_choice: aiChoice });
     return data;
 };
 
@@ -68,6 +68,7 @@ export interface BoardResponse {
     winner?: 'player'|'ai'|null;
     started?: boolean;
     player_ships?: { row:number; col:number; length:number; orientation:'H'|'V' }[];
+    ai_choice?: 'prolog'|'heatmap'|'simple';
 }
 
 export const getBoard = async (): Promise<BoardResponse> => {
