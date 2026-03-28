@@ -7,6 +7,8 @@ A fully playable Battleships game with multiple AI difficulty levels, built with
 
 <img width="512" height="295" alt="image" src="https://github.com/user-attachments/assets/2a352d0d-5a17-4825-b243-1b1e26f7d81e" />
 
+<img width="512" height="295" alt="image" src="https://github.com/user-attachments/assets/bbcd6285-675e-46e1-a398-7c5c2f4d9059" />
+
 ---
 
 ## Rules
