@@ -11,8 +11,6 @@ A fully playable Battleships game with multiple AI difficulty levels, built with
 
 You can also read about the project using this [academic paper](https://docs.google.com/document/d/1H_k6ojKRz2jJ0leckTO2bb1xBjAUyb_xy893uJ6lKsY/edit?usp=sharing) 
 
----
-
 ## Rules
 
 The game is played on two 10×10 grids. Each player places the following fleet:
@@ -29,7 +27,6 @@ The game is played on two 10×10 grids. Each player places the following fleet:
 - When a ship is sunk, all adjacent cells are automatically marked as misses.
 - Turns continue until a miss occurs. The first player to sink all opponent ships wins.
 
----
 
 ## Game Phases
 
@@ -38,8 +35,6 @@ Players place their ships on the grid, with the ability to rotate ships and rese
 
 **2. Battle Phase**
 Players take turns firing at the opponent's grid. AI attacks are animated to enhance the experience.
-
----
 
 ## AI Strategies
 
@@ -60,7 +55,6 @@ The checkerboard approach ignores how many ships remain, which types they are, a
 
 The AI always attacks the highest-probability cell. Because the heatmap adapts to every new piece of information, this is an **informed search over all possible ship configurations**. Humans cannot realistically replicate these calculations on the fly, making this AI very difficult to beat without luck.
 
----
 
 ## Tech Stack
 
@@ -69,7 +63,6 @@ The AI always attacks the highest-probability cell. Because the heatmap adapts t
 - **Logic layer:** Prolog (tactical inference for Option 2)
 - **Deployment:** Docker / Render
 
----
 
 ## Running Locally
 
@@ -83,7 +76,6 @@ docker compose up
 
 Then open `http://localhost:3000` in your browser.
 
----
 
 ## Project Structure
 
@@ -95,8 +87,6 @@ battleships/
 ├── frontend/       # React app
 └── docker-compose.yml
 ```
-
----
 
 ## AI Design Notes
 
