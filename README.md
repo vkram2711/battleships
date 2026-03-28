@@ -3,6 +3,7 @@
 A fully playable Battleships game with multiple AI difficulty levels, built with a **Flask** backend and **React** frontend. The AI ranges from a simple random guesser to a sophisticated probability heatmap engine that humans struggle to beat without getting lucky.
 
 **[▶ Play the game](https://battleships-kwvy.onrender.com/)**
+<img width="512" height="295" alt="image" src="https://github.com/user-attachments/assets/2a352d0d-5a17-4825-b243-1b1e26f7d81e" />
 
 ---
 
