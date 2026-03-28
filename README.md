@@ -9,6 +9,8 @@ A fully playable Battleships game with multiple AI difficulty levels, built with
 
 <img width="512" height="295" alt="image" src="https://github.com/user-attachments/assets/bbcd6285-675e-46e1-a398-7c5c2f4d9059" />
 
+You can also read about the project using this [academic paper](https://docs.google.com/document/d/1H_k6ojKRz2jJ0leckTO2bb1xBjAUyb_xy893uJ6lKsY/edit?usp=sharing) 
+
 ---
 
 ## Rules
@@ -65,7 +67,7 @@ The AI always attacks the highest-probability cell. Because the heatmap adapts t
 - **Backend:** Python / Flask
 - **Frontend:** React
 - **Logic layer:** Prolog (tactical inference for Option 2)
-- **Deployment:** Docker / Heroku
+- **Deployment:** Docker / Render
 
 ---
 
